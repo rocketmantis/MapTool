@@ -48,8 +48,9 @@ namespace MapTool
     class Room
     {
         // Fields
-        RoomWalls _Walls = new RoomWalls();
-        Color _Color;
+        private RoomWalls _Walls = new RoomWalls();
+        private Color _Color;
+        private Boolean _MergeAsNull;
 
         // Properties
         public RoomWalls Walls { get { return _Walls; } }
@@ -58,6 +59,12 @@ namespace MapTool
             get { return _Color; }
             set { _Color = value; }
         }
+        public Boolean MergeAsNull
+        {
+            get { return _MergeAsNull; }
+            set { _MergeAsNull = value; }
+        }
+
 
         public void SplitWall(int side)
         {

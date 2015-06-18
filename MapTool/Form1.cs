@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using CoordinateHelper;
 
 namespace MapTool
 {
@@ -67,22 +68,37 @@ namespace MapTool
             newRoom.Walls[Direction.Bottom].Type = WallType.Solid;
         }
 
-        private Rectangle GetRoomRect(Point roomPt)
+        private Rectangle GetCanvasRectForRoom(Point startPt, Point? endPt = null)
         {
-            return new Rectangle(
-                Origin.Y + roomPt.X * RoomSize.Width,
-                Origin.Y + roomPt.Y * RoomSize.Height,
-                RoomSize.Width,
-                RoomSize.Height);
+            Point useEndPt = endPt ?? startPt;
+            Rectangle roomRect = RectHelper.FromPoints(startPt, useEndPt);
+            // Inflate the bottom-right of the rect so both points are included in its area.
+            roomRect.Size += new Size(1, 1);
+
+            return GetCanvasRectForRoom(roomRect);
         }
-        private Boolean HitTestRoom(Point canvasPoint, out Point roomPt)
+
+        private Rectangle GetCanvasRectForRoom(Rectangle roomRect, Boolean includeBorders = false)
+        {
+            roomRect = RectHelper.Normalize(roomRect);
+
+            Rectangle canvasRect = new Rectangle(
+                Origin.Y + roomRect.Left * RoomSize.Width,
+                Origin.Y + roomRect.Top * RoomSize.Height,
+                roomRect.Width * RoomSize.Width,
+                roomRect.Height * RoomSize.Height);
+            if (includeBorders)
+                canvasRect.Inflate(HalfWallWidth, HalfWallWidth);
+
+            return canvasRect;
+        }
+        private Point GetRoomPtForCanvasPoint(Point canvasPoint)
         {
             // This is just the reverse of GetRoomRect, really.
             Point boundsPoint = Point.Subtract(canvasPoint, (Size)Origin);
-            roomPt = new Point(
+            return new Point(
                 (int)Math.Floor((double)boundsPoint.X / RoomSize.Width),
                 (int)Math.Floor((double)boundsPoint.Y / RoomSize.Height));
-            return _Map.Bounds.Contains(roomPt);
         }
 
         private void Form1_Paint(object sender, PaintEventArgs e)
@@ -117,7 +133,7 @@ namespace MapTool
                     Room curRoom = _Map.GetRoom(roomPt);
                     if (curRoom != null)
                     {
-                        Rectangle roomRect = GetRoomRect(roomPt);
+                        Rectangle roomRect = GetCanvasRectForRoom(roomPt);
 
                         if (Rectangle.Inflate(roomRect, HalfWallWidth, HalfWallWidth).IntersectsWith(e.ClipRectangle))
                         {
@@ -195,8 +211,8 @@ namespace MapTool
 
         private void Form1_MouseMove(object sender, MouseEventArgs e)
         {
-            Point roomPt;
-            if (HitTestRoom(e.Location, out roomPt))
+            Point roomPt = GetRoomPtForCanvasPoint(e.Location);
+            if (_Map.Bounds.Contains(roomPt))
             {
                 label1.Text = "X: " + roomPt.X;
                 label2.Text = "Y: " + roomPt.Y;
@@ -206,6 +222,32 @@ namespace MapTool
                 label1.Text = "";
                 label2.Text = "";
             }
+        }
+
+        private MouseEventArgs MouseDownArgs;
+
+        private void Form1_MouseDown(object sender, MouseEventArgs e)
+        {
+            MouseDownArgs = e;
+        }
+
+        private void Form1_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                Point startPt = GetRoomPtForCanvasPoint(MouseDownArgs.Location);
+                Point endPt = GetRoomPtForCanvasPoint(e.Location);
+
+                Rectangle roomRect = RectHelper.FromPoints(startPt, endPt);
+                // Inflate the bottom-right so both points are included.
+                roomRect.Size += new Size(1, 1);
+
+                _Map.DrawRectangle(roomRect, Color.DeepSkyBlue, WallType.Solid);
+
+                Invalidate(GetCanvasRectForRoom(roomRect, true));
+            }
+
+            MouseDownArgs = null;
         }
     }
 }

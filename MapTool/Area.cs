@@ -193,7 +193,7 @@ namespace MapTool
     class Area
     {
         RoomGrid _Rooms = new RoomGrid();
-        Rectangle _Bounds = new Rectangle(0,0,0,0);
+        Rectangle _Bounds = new Rectangle(0, 0, 0, 0);
 
         private Point GetGridPoint(Point boundsPoint)
         { return Point.Subtract(boundsPoint, (Size)Bounds.Location); }
@@ -207,12 +207,17 @@ namespace MapTool
         {
             return _Rooms.CreateRoom(GetGridPoint(roomPt));
         }
+        public Room GetOrCreateRoom(Point roomPt)
+        {
+            Room result = GetRoom(roomPt);
+            return result ?? CreateRoom(roomPt);
+        }
         public Room GetAdjacentRoom(Point roomPt, int direction)
-        { 
+        {
             return _Rooms.GetAdjacentRoom(GetGridPoint(roomPt), direction);
         }
         public IEnumerator<IEnumerable<Room>> GetGridEnumerator()
-            { return _Rooms.GetEnumerator(); }
+        { return _Rooms.GetEnumerator(); }
 
         // Changing this will also move around the contents of the grid, adding new null rooms as needed
         // and discarding rooms that are outside the new rect.
@@ -263,6 +268,54 @@ namespace MapTool
                 }
             }
             get { return _Bounds; }
+        }
+
+        public void DrawRectangle(Rectangle rect, Color color, WallType wallType)
+        {
+
+            if (rect.IsEmpty)
+                return;
+
+            // Expand the bounds to make room for rect, if needed.
+            if (!Bounds.Contains(rect))
+                Bounds = Rectangle.Union(Bounds, rect);
+
+            Point roomPt = new Point();
+            Boolean[] isEdge = new Boolean[Direction.Count];
+
+            for (roomPt.Y = rect.Top; roomPt.Y < rect.Bottom; roomPt.Y++)
+            {
+                isEdge[Direction.Top] = (roomPt.Y == rect.Top);
+                isEdge[Direction.Bottom] = (roomPt.Y == rect.Bottom - 1);
+
+                for (roomPt.X = rect.Left; roomPt.X < rect.Right; roomPt.X++)
+                {
+                    isEdge[Direction.Left] = (roomPt.X == rect.Left);
+                    isEdge[Direction.Right] = (roomPt.X == rect.Right - 1);
+
+                    Room newRoom = GetOrCreateRoom(roomPt);
+                    newRoom.Color = color;
+
+                    // Set up the walls.
+                    for (int i = Direction.First; i < Direction.Count; i++)
+                    {
+                        if (isEdge[i])
+                        {
+                            // For exterior walls, only replace the
+                            // connecting wall if it is weaker than the requested type.
+                            // (ie. leave doors etc. in place)
+
+                            //Room adjRoom = GetAdjacentRoom(roomPt, i);
+                            // if ((adjRoom == null) || (wallType > newRoom.Walls[i].Type))
+                            if (wallType > newRoom.Walls[i].Type)
+                                newRoom.Walls[i].Type = wallType;
+                        }
+                        else
+                            // Interior walls are all set to none.
+                            newRoom.Walls[i].Type = WallType.None;
+                    }
+                }
+            }
         }
     }
 }
