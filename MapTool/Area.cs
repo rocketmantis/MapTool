@@ -312,7 +312,7 @@ namespace MapTool
                         }
                         else
                             // Interior walls are all set to none.
-                            newRoom.Walls[i].Type = WallType.None;
+                            newRoom.Walls[i].Type = WallType.Open;
                     }
                 }
             }

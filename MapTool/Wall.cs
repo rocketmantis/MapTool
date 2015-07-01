@@ -7,17 +7,19 @@ using System.Drawing;
 
 namespace MapTool
 {
+    [FlagsAttribute]
     enum WallType
     {
-        None,
-        Solid,
-        OpenDoor,
-        ClosedDoor
+        Undefined = 0,
+        Open = 1,
+        Solid = 2,
+        OpenDoor = 4,
+        ClosedDoor = 8
     }
 
     class Wall
     {
-        WallType _Type = WallType.None;
+        WallType _Type = WallType.Undefined;
         Color _DoorColor = Color.Fuchsia;
 
         public WallType Type

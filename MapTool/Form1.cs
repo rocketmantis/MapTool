@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,6 +29,7 @@ namespace MapTool
             InitializeComponent();
             _Map.Bounds = new Rectangle(-1, -1, 5, 5);
 
+            // Make a room for the top-left and bottom-right corners
             Room newRoom = _Map.CreateRoom(new Point(-1, -1));
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Top].Type = WallType.OpenDoor;
@@ -38,6 +40,7 @@ namespace MapTool
             newRoom.Walls[Direction.Bottom].Type = WallType.OpenDoor;
             newRoom.Walls[Direction.Right].Type = WallType.OpenDoor;
 
+            // Fill in a few rooms to start with.
             newRoom = _Map.CreateRoom(new Point(2, 1));
             newRoom.Color = Color.ForestGreen;
             newRoom.Walls[Direction.Top].Type = WallType.Solid;
@@ -123,12 +126,13 @@ namespace MapTool
             e.Graphics.FillRectangle(new SolidBrush(Color.DimGray), paintRect);
 
             Pen wallPen = new Pen(WallColor, WallWidth);
+            Pen errorPen = null;
             // e.Graphics.DrawRectangle(wallPen, areaRect);
 
             Point roomPt = new Point();
 
-            for (roomPt.Y = _Map.Bounds.Top; roomPt.Y < _Map.Bounds.Bottom; roomPt.Y += 1)
-                for (roomPt.X = _Map.Bounds.Left; roomPt.X < _Map.Bounds.Right; roomPt.X += 1)
+            for (roomPt.Y = _Map.Bounds.Top; roomPt.Y < _Map.Bounds.Bottom; roomPt.Y++)
+                for (roomPt.X = _Map.Bounds.Left; roomPt.X < _Map.Bounds.Right; roomPt.X++)
                 {
                     Room curRoom = _Map.GetRoom(roomPt);
                     if (curRoom != null)
@@ -160,27 +164,32 @@ namespace MapTool
                                 if (((i == Direction.Bottom) || (i == Direction.Right)) && (_Map.GetAdjacentRoom(roomPt, i) != null))
                                     continue;
 
-                                if (curWall.Type != WallType.None)
+                                switch (curWall.Type)
                                 {
-                                    // If there's a door, fill the door back in.
-                                    if (curWall.Type == WallType.Solid)
+                                    case WallType.Undefined:
+                                        errorPen = errorPen ?? new Pen(new HatchBrush(HatchStyle.BackwardDiagonal, Color.Red), WallWidth);
+                                        e.Graphics.DrawLine(errorPen, corners[i], corners[i + 1]);
+                                        break;
+                                    // case WallType.Open: do nothing
+                                    case WallType.Solid:
                                         e.Graphics.DrawLine(wallPen, corners[i], corners[i + 1]);
-                                    else
-                                    {
+                                        break;
+                                    case WallType.OpenDoor:
+                                    case WallType.ClosedDoor:
                                         // Doors run from 1/4 to 3/4 of the wall.
                                         const int DoorScale = 4;
 
                                         Point doorStart = new Point(
-                                                (corners[i].X * (DoorScale-1) + corners[i + 1].X) / DoorScale,
-                                                (corners[i].Y * (DoorScale-1) + corners[i + 1].Y) / DoorScale);
+                                                (corners[i].X * (DoorScale - 1) + corners[i + 1].X) / DoorScale,
+                                                (corners[i].Y * (DoorScale - 1) + corners[i + 1].Y) / DoorScale);
                                         Point doorEnd = new Point(
-                                                (corners[i].X + corners[i + 1].X * (DoorScale-1)) / DoorScale,
-                                                (corners[i].Y + corners[i + 1].Y * (DoorScale-1)) / DoorScale);
+                                                (corners[i].X + corners[i + 1].X * (DoorScale - 1)) / DoorScale,
+                                                (corners[i].Y + corners[i + 1].Y * (DoorScale - 1)) / DoorScale);
 
                                         e.Graphics.DrawLine(wallPen, corners[i], doorStart);
                                         e.Graphics.DrawLine(wallPen, doorEnd, corners[i + 1]);
 
-                                        // If the door is closed the paint it with the door color,
+                                        // If the door is closed then paint in a door using the door color,
                                         // otherwise leave it unpainted.
                                         if (curWall.Type == WallType.ClosedDoor)
                                         {
@@ -200,13 +209,14 @@ namespace MapTool
                                             e.Graphics.FillRectangle(doorBrush, doorRect);
                                             e.Graphics.DrawRectangle(doorPen, doorRect);
                                         }
-                                    }
-                                }
-
-                            }
-                        }
-                    }
-                }
+                                        break;
+                                    default:
+                                        break;
+                                } // switch (curWall.Type)
+                            } // for i in directions do
+                        } // if room intersects cliprect then
+                    } // if room isn't null then
+                } // for x, y in bounds do
         }
 
         private void Form1_MouseMove(object sender, MouseEventArgs e)
