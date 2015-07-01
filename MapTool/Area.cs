@@ -198,13 +198,31 @@ namespace MapTool
         private Point GetGridPoint(Point boundsPoint)
         { return Point.Subtract(boundsPoint, (Size)Bounds.Location); }
 
+        // Expand the bounds to make room for rect, if needed.
+        private void ExtendBoundsIfNeeded(Rectangle rect)
+        {
+            if (!Bounds.Contains(rect))
+                Bounds = Rectangle.Union(Bounds, rect);
+        }
+        private void ExtendBoundsIfNeeded(Point pt)
+        {
+            if (!Bounds.Contains(pt))
+                Bounds = Rectangle.Union(Bounds, new Rectangle(pt, new Size(1, 1)));
+        }
+
         // Pass-through methods into the grid.
         public Room GetRoom(Point roomPt)
         {
-            return _Rooms.GetRoom(GetGridPoint(roomPt));
+            // The grid will crash if you ask it for a room out of range.
+            // By contrast, areas just have implicit null rooms for everything outside the current bounds.
+            if (Bounds.Contains(roomPt))
+                return _Rooms.GetRoom(GetGridPoint(roomPt));
+            else
+                return null;
         }
         public Room CreateRoom(Point roomPt)
         {
+            ExtendBoundsIfNeeded(roomPt);
             return _Rooms.CreateRoom(GetGridPoint(roomPt));
         }
         public Room GetOrCreateRoom(Point roomPt)
@@ -270,15 +288,13 @@ namespace MapTool
             get { return _Bounds; }
         }
 
-        public void DrawRectangle(Rectangle rect, Color color, WallType wallType)
+        public void DrawRectangle(Rectangle rect, Color color, WallType outerWall, WallType preserveWalls)
         {
 
             if (rect.IsEmpty)
                 return;
 
-            // Expand the bounds to make room for rect, if needed.
-            if (!Bounds.Contains(rect))
-                Bounds = Rectangle.Union(Bounds, rect);
+            ExtendBoundsIfNeeded(rect);
 
             Point roomPt = new Point();
             Boolean[] isEdge = new Boolean[Direction.Count];
@@ -301,14 +317,13 @@ namespace MapTool
                     {
                         if (isEdge[i])
                         {
-                            // For exterior walls, only replace the
-                            // connecting wall if it is weaker than the requested type.
-                            // (ie. leave doors etc. in place)
+                            // For exterior walls, replace the connecting wall from the adjacent room
+                            // unless it is one of the wall types to preserve.
+                            // (ie. can leave doors etc. in place)
+                            WallType oldType = newRoom.Walls[i].Type;
 
-                            //Room adjRoom = GetAdjacentRoom(roomPt, i);
-                            // if ((adjRoom == null) || (wallType > newRoom.Walls[i].Type))
-                            if (wallType > newRoom.Walls[i].Type)
-                                newRoom.Walls[i].Type = wallType;
+                            if ((oldType == WallType.Undefined) || (!preserveWalls.HasFlag(oldType)))
+                                newRoom.Walls[i].Type = outerWall;
                         }
                         else
                             // Interior walls are all set to none.

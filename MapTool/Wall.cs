@@ -14,7 +14,8 @@ namespace MapTool
         Open = 1,
         Solid = 2,
         OpenDoor = 4,
-        ClosedDoor = 8
+        ClosedDoor = 8,
+        AnyDoor = OpenDoor | ClosedDoor
     }
 
     class Wall

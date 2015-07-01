@@ -27,7 +27,9 @@ namespace MapTool
         public Form1()
         {
             InitializeComponent();
-            _Map.Bounds = new Rectangle(-1, -1, 5, 5);
+            // We shouldn't need to explicitly set the bounds anymore;
+            // CreateRoom should extend the boundary as necessary.
+            //_Map.Bounds = new Rectangle(-1, -1, 5, 5);
 
             // Make a room for the top-left and bottom-right corners
             Room newRoom = _Map.CreateRoom(new Point(-1, -1));
@@ -252,7 +254,13 @@ namespace MapTool
                 // Inflate the bottom-right so both points are included.
                 roomRect.Size += new Size(1, 1);
 
-                _Map.DrawRectangle(roomRect, Color.DeepSkyBlue, WallType.Solid);
+                // Always preserve existing doors on the outer edge of the new room.
+                WallType preserveWalls = WallType.AnyDoor;
+                // Also preserve existing open walls if the drawing started inside an existing room.
+                if (_Map.GetRoom(startPt) != null)
+                    preserveWalls = preserveWalls | WallType.Open;
+
+                _Map.DrawRectangle(roomRect, Color.DeepSkyBlue, WallType.Solid, preserveWalls);
 
                 Invalidate(GetCanvasRectForRoom(roomRect, true));
             }
