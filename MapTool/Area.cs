@@ -190,11 +190,15 @@ namespace MapTool
         }
     };
 
+    public delegate void BoundsChangedEventHandler(object sender, Rectangle oldBounds);
+
     class Area
     {
-        RoomGrid _Rooms = new RoomGrid();
-        Rectangle _Bounds = new Rectangle(0, 0, 0, 0);
+        // Fields
+        private RoomGrid _Rooms = new RoomGrid();
+        private Rectangle _Bounds = new Rectangle(0, 0, 0, 0);
 
+        // Private utility methods
         private Point GetGridPoint(Point boundsPoint)
         { return Point.Subtract(boundsPoint, (Size)Bounds.Location); }
 
@@ -237,14 +241,24 @@ namespace MapTool
         public IEnumerator<IEnumerable<Room>> GetGridEnumerator()
         { return _Rooms.GetEnumerator(); }
 
-        // Changing this will also move around the contents of the grid, adding new null rooms as needed
-        // and discarding rooms that are outside the new rect.
+        // Bounds-related properties
+        public event BoundsChangedEventHandler BoundsChanged;
+        protected virtual void OnBoundsChanged(Rectangle oldBounds)
+        {
+            if (BoundsChanged != null)
+                BoundsChanged(this, oldBounds);
+        }
         public Rectangle Bounds
         {
             set
             {
+                // Changing the bounds also moves around the contents of the grid,
+                // adding new null rooms as needed and discarding rooms that are
+                // outside the new rect.
                 if (_Bounds != value)
                 {
+                    Rectangle oldBounds = _Bounds;
+
                     // Adjust the width first, so any new rows added get the right number of rooms to start.
                     if (_Bounds.Left != value.Left)
                     {
@@ -283,12 +297,19 @@ namespace MapTool
 
                     // The rooms have been updated, so now we can set the field and be done.
                     _Bounds = value;
+                    OnBoundsChanged(oldBounds);
                 }
             }
             get { return _Bounds; }
         }
 
-        public void DrawRectangle(Rectangle rect, Color color, WallType outerWall, WallType preserveWalls)
+        public enum DrawWallMode
+        {
+            Overwrite,
+            Extend
+        }
+
+        public void DrawRectangle(Rectangle rect, Color color, DrawWallMode drawMode)
         {
 
             if (rect.IsEmpty)
@@ -317,13 +338,33 @@ namespace MapTool
                     {
                         if (isEdge[i])
                         {
-                            // For exterior walls, replace the connecting wall from the adjacent room
-                            // unless it is one of the wall types to preserve.
-                            // (ie. can leave doors etc. in place)
-                            WallType oldType = newRoom.Walls[i].Type;
+                            Boolean overwriteWall;
 
-                            if ((oldType == WallType.Undefined) || (!preserveWalls.HasFlag(oldType)))
-                                newRoom.Walls[i].Type = outerWall;
+                            switch (newRoom.Walls[i].Type)
+                            {
+                                case WallType.Undefined:
+                                    overwriteWall = true;
+                                    break;
+                                case WallType.Open:
+                                    // If we are in extend mode then only fill in open walls along the edge
+                                    // if the adjacent room is a different color (or null).
+                                    if (drawMode == DrawWallMode.Extend)
+                                    {
+                                        Room adjRoom = GetAdjacentRoom(roomPt, i);
+                                        overwriteWall = (adjRoom == null) || (adjRoom.Color != color);
+                                    }
+                                    else
+                                        overwriteWall = true;
+
+                                    break;
+                                default:
+                                    // leave doors alone, and solid walls can be ignored because we're drawing as solid anyway.
+                                    overwriteWall = false;
+                                    break;
+                            }
+
+                            if (overwriteWall)
+                                newRoom.Walls[i].Type = WallType.Solid;
                         }
                         else
                             // Interior walls are all set to none.

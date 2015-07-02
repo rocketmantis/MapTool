@@ -24,9 +24,54 @@ namespace MapTool
         private Point Origin = new Point(80, 80);
         private Color WallColor = Color.White;
 
+        private Rectangle GetCanvasRectForRoom(Point startPt, Point? endPt = null)
+        {
+            Point useEndPt = endPt ?? startPt;
+            Rectangle roomRect = RectHelper.FromPoints(startPt, useEndPt);
+            // Inflate the bottom-right of the rect so both points are included in its area.
+            roomRect.Size += new Size(1, 1);
+
+            return GetCanvasRectForRoom(roomRect);
+        }
+
+        private Rectangle GetCanvasRectForRoom(Rectangle roomRect, Boolean includeBorders = false)
+        {
+            roomRect = RectHelper.Normalize(roomRect);
+
+            Rectangle canvasRect = new Rectangle(
+                Origin.Y + roomRect.Left * RoomSize.Width,
+                Origin.Y + roomRect.Top * RoomSize.Height,
+                roomRect.Width * RoomSize.Width,
+                roomRect.Height * RoomSize.Height);
+            if (includeBorders)
+                canvasRect.Inflate(HalfWallWidth, HalfWallWidth);
+
+            return canvasRect;
+        }
+        private Point GetRoomPtForCanvasPoint(Point canvasPoint)
+        {
+            // This is just the reverse of GetCanvasRectForRoom, really.
+            Point boundsPoint = Point.Subtract(canvasPoint, (Size)Origin);
+            return new Point(
+                (int)Math.Floor((double)boundsPoint.X / RoomSize.Width),
+                (int)Math.Floor((double)boundsPoint.Y / RoomSize.Height));
+        }
+
+        private void MapBoundsChanged(object sender, Rectangle oldBounds)
+        {
+            // The areas that have changed are the union of the two bounds,
+            // excluding the intersection. ie. the xor of the two rects.
+            Region invalidRegion = new Region(GetCanvasRectForRoom(oldBounds, true));
+            invalidRegion.Xor(GetCanvasRectForRoom(_Map.Bounds, true));
+            Invalidate(invalidRegion);
+        }
+
         public Form1()
         {
             InitializeComponent();
+
+            _Map.BoundsChanged += MapBoundsChanged;
+
             // We shouldn't need to explicitly set the bounds anymore;
             // CreateRoom should extend the boundary as necessary.
             //_Map.Bounds = new Rectangle(-1, -1, 5, 5);
@@ -71,39 +116,6 @@ namespace MapTool
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Top].Type = WallType.Solid;
             newRoom.Walls[Direction.Bottom].Type = WallType.Solid;
-        }
-
-        private Rectangle GetCanvasRectForRoom(Point startPt, Point? endPt = null)
-        {
-            Point useEndPt = endPt ?? startPt;
-            Rectangle roomRect = RectHelper.FromPoints(startPt, useEndPt);
-            // Inflate the bottom-right of the rect so both points are included in its area.
-            roomRect.Size += new Size(1, 1);
-
-            return GetCanvasRectForRoom(roomRect);
-        }
-
-        private Rectangle GetCanvasRectForRoom(Rectangle roomRect, Boolean includeBorders = false)
-        {
-            roomRect = RectHelper.Normalize(roomRect);
-
-            Rectangle canvasRect = new Rectangle(
-                Origin.Y + roomRect.Left * RoomSize.Width,
-                Origin.Y + roomRect.Top * RoomSize.Height,
-                roomRect.Width * RoomSize.Width,
-                roomRect.Height * RoomSize.Height);
-            if (includeBorders)
-                canvasRect.Inflate(HalfWallWidth, HalfWallWidth);
-
-            return canvasRect;
-        }
-        private Point GetRoomPtForCanvasPoint(Point canvasPoint)
-        {
-            // This is just the reverse of GetRoomRect, really.
-            Point boundsPoint = Point.Subtract(canvasPoint, (Size)Origin);
-            return new Point(
-                (int)Math.Floor((double)boundsPoint.X / RoomSize.Width),
-                (int)Math.Floor((double)boundsPoint.Y / RoomSize.Height));
         }
 
         private void Form1_Paint(object sender, PaintEventArgs e)
@@ -255,13 +267,25 @@ namespace MapTool
                 roomRect.Size += new Size(1, 1);
 
                 // Always preserve existing doors on the outer edge of the new room.
-                WallType preserveWalls = WallType.AnyDoor;
-                // Also preserve existing open walls if the drawing started inside an existing room.
-                if (_Map.GetRoom(startPt) != null)
-                    preserveWalls = preserveWalls | WallType.Open;
+                Area.DrawWallMode wallMode = Area.DrawWallMode.Overwrite;
+                // Default room color for new/changed rooms.
+                Color roomColor = Color.DeepSkyBlue;
 
-                _Map.DrawRectangle(roomRect, Color.DeepSkyBlue, WallType.Solid, preserveWalls);
+                // Some things depend on the room that the drag started in.
+                Room startRoom = _Map.GetRoom(startPt);
+                if (startRoom != null)
+                {
+                    // Also preserve existing open walls if the drawing started inside an existing room.
+                    wallMode = Area.DrawWallMode.Extend;
+                    // Use the starting room's color when extending it this way.
+                    roomColor = startRoom.Color;
+                }
 
+                _Map.DrawRectangle(roomRect, roomColor, wallMode);
+
+                // Invalidate the changed rooms directly.
+                // If the bounds changed as a result of DrawRectangle, the BoundsChanged event handler
+                // will deal with invalidating the fallout from that.
                 Invalidate(GetCanvasRectForRoom(roomRect, true));
             }
 
