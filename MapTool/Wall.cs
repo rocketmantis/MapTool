@@ -34,7 +34,7 @@ namespace MapTool
             set { _DoorColor = value; }
         }
 
-        public Wall Split()
+        public Wall Clone()
         {
             Wall newWall = new Wall();
             newWall.Type = Type;
@@ -44,14 +44,27 @@ namespace MapTool
 
         public void Merge(Wall otherWall)
         {
-            // Only merge the color from closed doors.
-            // If both walls have closed doors, arbitrarily keep my own color.
-            if ((Type != WallType.ClosedDoor) && (otherWall.Type == WallType.ClosedDoor))
-                DoorColor = otherWall.DoorColor;
+            /*  The rules here are:
+                1. replace undefined with whatever the other wall is
+                2. open walls get replaced by solid or doors
+                3. solid gets replaced by any door
+                4. if both are doors, leave them alone
 
-            // WallTypes are ordered by strength of wall, and generally we want
-            // to use whichever wall is stronger when merging two walls together.
-            Type = CompareHelper<WallType>.Max(Type, otherWall.Type);
+                This boils down to just using the stronger wall, unless they're both doors,
+                in which case do nothing.
+             */
+            if ( (Type < WallType.ClosedDoor) & (otherWall.Type < WallType.ClosedDoor) )
+            {
+                // Merge the color across from any closed doors.
+                if (Type == WallType.ClosedDoor)
+                    otherWall.DoorColor = DoorColor;
+                else if (otherWall.Type == WallType.ClosedDoor)
+                    DoorColor = otherWall.DoorColor;
+
+                // Merge the wall type.
+                Type = CompareHelper<WallType>.Max(Type, otherWall.Type);
+                otherWall.Type = Type;
+            }
         }
     }
 }

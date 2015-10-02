@@ -66,24 +66,25 @@ namespace MapTool
         }
 
 
-        public void SplitWall(int side)
-        {
-            Walls[side] = Walls[side].Split();
-        }
+        //public void SplitWall(int side)
+        //{
+        //    Walls[side] = Walls[side].Clone();
+        //}
 
         public void MergeWalls(int side, Room adjacentRoom)
         {
             int otherSide = Direction.Invert(side);
-            // Merge the other room's wall into my wall.
+            // Merge my wall with the other room's wall.
+            // (this doesn't actually combine the objects, just sets them to be equal using certain merge-type rules.
             Walls[side].Merge(adjacentRoom.Walls[otherSide]);
 
-            // Replace the other room's wall with my (merged) wall.
-            adjacentRoom.Walls[otherSide] = Walls[side];
+            //// Replace the other room's wall with my (merged) wall.
+            //adjacentRoom.Walls[otherSide] = Walls[side];
         }
 
         public void ConnectWall(int side, Room adjacentRoom)
         {
-            Walls[side] = (adjacentRoom != null) ? adjacentRoom.Walls[Direction.Invert(side)] : new Wall();
+            Walls[side] = (adjacentRoom != null) ? adjacentRoom.Walls[Direction.Invert(side)].Clone() : new Wall();
         }
     }
 }

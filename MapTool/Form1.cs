@@ -14,7 +14,7 @@ namespace MapTool
 {
     public partial class Form1 : Form
     {
-        private Area _Map = new Area();
+        private Map _Map = new Map();
 
         private Size RoomSize = new Size(32, 32);
         private const int WallWidth = 4;
@@ -28,7 +28,7 @@ namespace MapTool
         {
             Point useEndPt = endPt ?? startPt;
             Rectangle roomRect = RectHelper.FromPoints(startPt, useEndPt);
-            // Inflate the bottom-right of the rect so both points are included in its area.
+            // Inflate the bottom-right of the rect so both points are included in its Map.
             roomRect.Size += new Size(1, 1);
 
             return GetCanvasRectForRoom(roomRect);
@@ -59,7 +59,7 @@ namespace MapTool
 
         private void MapBoundsChanged(object sender, Rectangle oldBounds)
         {
-            // The areas that have changed are the union of the two bounds,
+            // The Maps that have changed are the union of the two bounds,
             // excluding the intersection. ie. the xor of the two rects.
             Region invalidRegion = new Region(GetCanvasRectForRoom(oldBounds, true));
             invalidRegion.Xor(GetCanvasRectForRoom(_Map.Bounds, true));
@@ -120,117 +120,131 @@ namespace MapTool
 
         private void Form1_Paint(object sender, PaintEventArgs e)
         {
-            Size areaSize = _Map.Bounds.Size;
-            areaSize.Width *= RoomSize.Width;
-            areaSize.Height *= RoomSize.Height;
+            Size MapSize = _Map.Bounds.Size;
+            MapSize.Width *= RoomSize.Width;
+            MapSize.Height *= RoomSize.Height;
 
-            Point areaLocation = _Map.Bounds.Location;
-            areaLocation.X *= RoomSize.Width;
-            areaLocation.Y *= RoomSize.Height;
-            areaLocation.Offset(Origin);
+            Point MapLocation = _Map.Bounds.Location;
+            MapLocation.X *= RoomSize.Width;
+            MapLocation.Y *= RoomSize.Height;
+            MapLocation.Offset(Origin);
 
-            Rectangle areaRect = new Rectangle(areaLocation, areaSize);
-            areaRect.Inflate(HalfWallWidth, HalfWallWidth);
+            Rectangle MapRect = new Rectangle(MapLocation, MapSize);
+            MapRect.Inflate(HalfWallWidth, HalfWallWidth);
 
-            if (!areaRect.IntersectsWith(e.ClipRectangle))
+            if (!MapRect.IntersectsWith(e.ClipRectangle))
                 return;
 
-            Rectangle paintRect = Rectangle.Intersect(areaRect, e.ClipRectangle);
+            Rectangle paintRect = Rectangle.Intersect(MapRect, e.ClipRectangle);
 
             e.Graphics.FillRectangle(new SolidBrush(Color.DimGray), paintRect);
 
             Pen wallPen = new Pen(WallColor, WallWidth);
             Pen errorPen = null;
-            // e.Graphics.DrawRectangle(wallPen, areaRect);
+            // e.Graphics.DrawRectangle(wallPen, MapRect);
 
-            Point roomPt = new Point();
+            // First loop: figure out which rooms need to be repainted
+            List<Point> dirtyRooms = new List<Point>();
 
-            for (roomPt.Y = _Map.Bounds.Top; roomPt.Y < _Map.Bounds.Bottom; roomPt.Y++)
-                for (roomPt.X = _Map.Bounds.Left; roomPt.X < _Map.Bounds.Right; roomPt.X++)
-                {
-                    Room curRoom = _Map.GetRoom(roomPt);
-                    if (curRoom != null)
+            {
+                // declare this inside a local scope since it's effectively a loop variable.
+                Point roomPt = new Point();
+                for (roomPt.Y = _Map.Bounds.Top; roomPt.Y < _Map.Bounds.Bottom; roomPt.Y++)
+                    for (roomPt.X = _Map.Bounds.Left; roomPt.X < _Map.Bounds.Right; roomPt.X++)
                     {
-                        Rectangle roomRect = GetCanvasRectForRoom(roomPt);
-
-                        if (Rectangle.Inflate(roomRect, HalfWallWidth, HalfWallWidth).IntersectsWith(e.ClipRectangle))
+                        Room curRoom = _Map.GetRoom(roomPt);
+                        if (curRoom != null)
                         {
-                            // Fill in the room area.
-                            e.Graphics.FillRectangle(new SolidBrush(curRoom.Color), roomRect);
+                            Rectangle roomRect = GetCanvasRectForRoom(roomPt);
 
-                            // Now figure out where the walls will be drawn.
-                            // These are picked such that for direction i, draw a line from point i to i+1 in this array.
-                            Point[] corners = {
-                                new Point(roomRect.Left, roomRect.Bottom),
-                                roomRect.Location,
-                                new Point(roomRect.Right, roomRect.Top),
-                                new Point(roomRect.Right, roomRect.Bottom),
-                                new Point(roomRect.Left, roomRect.Bottom) };
+                            if (Rectangle.Inflate(roomRect, HalfWallWidth, HalfWallWidth).IntersectsWith(e.ClipRectangle))
+                                dirtyRooms.Add(roomPt);
+                        } // if room isn't null then
+                    } // for x, y in bounds do
+            }
 
-                            // Loop through and draw walls as necessary.
-                            for (int i = Direction.First; i < Direction.Count; i++)
+            // first pass across rooms: fill in the background
+            foreach (Point roomPt in dirtyRooms)
+            {
+                Room curRoom = _Map.GetRoom(roomPt);
+                Rectangle roomRect = GetCanvasRectForRoom(roomPt);
+                // Fill in the room area.
+                e.Graphics.FillRectangle(new SolidBrush(curRoom.Color), roomRect);
+            }
+
+            // second pass across rooms: draw the walls and doors
+            foreach (Point roomPt in dirtyRooms)
+            {
+                Room curRoom = _Map.GetRoom(roomPt);
+                Rectangle roomRect = GetCanvasRectForRoom(roomPt);
+
+                // Now figure out where the walls will be drawn.
+                // These are picked such that for direction i, draw a line from point i to i+1 in this array.
+                Point[] corners = {
+                                    new Point(roomRect.Left, roomRect.Bottom),
+                                    roomRect.Location,
+                                    new Point(roomRect.Right, roomRect.Top),
+                                    new Point(roomRect.Right, roomRect.Bottom),
+                                    new Point(roomRect.Left, roomRect.Bottom) };
+
+                // Loop through and draw walls as necessary.
+                for (int i = Direction.First; i < Direction.Count; i++)
+                {
+                    Wall curWall = curRoom.Walls[i];
+
+                    switch (curWall.Type)
+                    {
+                        case WallType.Undefined:
+                            errorPen = errorPen ?? new Pen(new HatchBrush(HatchStyle.BackwardDiagonal, Color.Red), WallWidth);
+                            e.Graphics.DrawLine(errorPen, corners[i], corners[i + 1]);
+                            break;
+                        // case WallType.Open: do nothing
+                        case WallType.Solid:
+                            e.Graphics.DrawLine(wallPen, corners[i], corners[i + 1]);
+                            break;
+                        case WallType.OpenDoor:
+                        case WallType.ClosedDoor:
+                            // Doors run from 1/4 to 3/4 of the wall.
+                            const int DoorScale = 4;
+
+                            Point doorStart = new Point(
+                                    (corners[i].X * (DoorScale - 1) + corners[i + 1].X) / DoorScale,
+                                    (corners[i].Y * (DoorScale - 1) + corners[i + 1].Y) / DoorScale);
+                            Point doorEnd = new Point(
+                                    (corners[i].X + corners[i + 1].X * (DoorScale - 1)) / DoorScale,
+                                    (corners[i].Y + corners[i + 1].Y * (DoorScale - 1)) / DoorScale);
+
+                            e.Graphics.DrawLine(wallPen, corners[i], doorStart);
+                            e.Graphics.DrawLine(wallPen, doorEnd, corners[i + 1]);
+
+                            // If the door is closed then paint in a door using the door color,
+                            // otherwise leave it unpainted.
+                            // todo: fix this to work when the adjacent room's wall doesn't match.
+                            // Room adjacentRoom = _Map.GetAdjacentRoom(roomPt, i);
+                            if (curWall.Type == WallType.ClosedDoor)
                             {
-                                Wall curWall = curRoom.Walls[i];
+                                Rectangle doorRect = new Rectangle(
+                                    Math.Min(doorStart.X, doorEnd.X),
+                                    Math.Min(doorStart.Y, doorEnd.Y),
+                                    Math.Abs(doorEnd.X - doorStart.X),
+                                    Math.Abs(doorEnd.Y - doorStart.Y));
+                                // One or the other of the dimensions will be 0
+                                if (doorRect.Width == 0)
+                                    doorRect.Inflate(WallWidth, 1);
+                                else
+                                    doorRect.Inflate(1, WallWidth);
 
-                                // Optimize: skip drawing the bottom and right walls if there is another room on that side.
-                                // This also means that walls will only be drawn after both rooms have been filled, since we
-                                // iterate top->bottom, left->right, so one room's fill can't overwrite the wall/door area.
-                                if (((i == Direction.Bottom) || (i == Direction.Right)) && (_Map.GetAdjacentRoom(roomPt, i) != null))
-                                    continue;
-
-                                switch (curWall.Type)
-                                {
-                                    case WallType.Undefined:
-                                        errorPen = errorPen ?? new Pen(new HatchBrush(HatchStyle.BackwardDiagonal, Color.Red), WallWidth);
-                                        e.Graphics.DrawLine(errorPen, corners[i], corners[i + 1]);
-                                        break;
-                                    // case WallType.Open: do nothing
-                                    case WallType.Solid:
-                                        e.Graphics.DrawLine(wallPen, corners[i], corners[i + 1]);
-                                        break;
-                                    case WallType.OpenDoor:
-                                    case WallType.ClosedDoor:
-                                        // Doors run from 1/4 to 3/4 of the wall.
-                                        const int DoorScale = 4;
-
-                                        Point doorStart = new Point(
-                                                (corners[i].X * (DoorScale - 1) + corners[i + 1].X) / DoorScale,
-                                                (corners[i].Y * (DoorScale - 1) + corners[i + 1].Y) / DoorScale);
-                                        Point doorEnd = new Point(
-                                                (corners[i].X + corners[i + 1].X * (DoorScale - 1)) / DoorScale,
-                                                (corners[i].Y + corners[i + 1].Y * (DoorScale - 1)) / DoorScale);
-
-                                        e.Graphics.DrawLine(wallPen, corners[i], doorStart);
-                                        e.Graphics.DrawLine(wallPen, doorEnd, corners[i + 1]);
-
-                                        // If the door is closed then paint in a door using the door color,
-                                        // otherwise leave it unpainted.
-                                        if (curWall.Type == WallType.ClosedDoor)
-                                        {
-                                            Rectangle doorRect = new Rectangle(
-                                                Math.Min(doorStart.X, doorEnd.X),
-                                                Math.Min(doorStart.Y, doorEnd.Y),
-                                                Math.Abs(doorEnd.X - doorStart.X),
-                                                Math.Abs(doorEnd.Y - doorStart.Y));
-                                            // One or the other of the dimensions will be 0
-                                            if (doorRect.Width == 0)
-                                                doorRect.Inflate(WallWidth, 1);
-                                            else
-                                                doorRect.Inflate(1, WallWidth);
-
-                                            Brush doorBrush = new SolidBrush(curWall.DoorColor);
-                                            Pen doorPen = new Pen(WallColor, DoorBorder);
-                                            e.Graphics.FillRectangle(doorBrush, doorRect);
-                                            e.Graphics.DrawRectangle(doorPen, doorRect);
-                                        }
-                                        break;
-                                    default:
-                                        break;
-                                } // switch (curWall.Type)
-                            } // for i in directions do
-                        } // if room intersects cliprect then
-                    } // if room isn't null then
-                } // for x, y in bounds do
+                                Brush doorBrush = new SolidBrush(curWall.DoorColor);
+                                Pen doorPen = new Pen(WallColor, DoorBorder);
+                                e.Graphics.FillRectangle(doorBrush, doorRect);
+                                e.Graphics.DrawRectangle(doorPen, doorRect);
+                            }
+                            break;
+                        default:
+                            break;
+                    } // switch (curWall.Type)
+                } // for i in directions do
+            }
         }
 
         private void Form1_MouseMove(object sender, MouseEventArgs e)
@@ -267,7 +281,7 @@ namespace MapTool
                 roomRect.Size += new Size(1, 1);
 
                 // Always preserve existing doors on the outer edge of the new room.
-                Area.DrawWallMode wallMode = Area.DrawWallMode.Overwrite;
+                Map.DrawWallMode wallMode = Map.DrawWallMode.Overwrite;
                 // Default room color for new/changed rooms.
                 Color roomColor = Color.DeepSkyBlue;
 
@@ -276,7 +290,7 @@ namespace MapTool
                 if (startRoom != null)
                 {
                     // Also preserve existing open walls if the drawing started inside an existing room.
-                    wallMode = Area.DrawWallMode.Extend;
+                    wallMode = Map.DrawWallMode.Extend;
                     // Use the starting room's color when extending it this way.
                     roomColor = startRoom.Color;
                 }
@@ -290,6 +304,27 @@ namespace MapTool
             }
 
             MouseDownArgs = null;
+        }
+
+        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void openToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
+            {
+                // todo
+            }
+        }
+
+        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (saveFileDialog1.ShowDialog(this) == DialogResult.OK)
+            {
+                // todo
+            }
         }
     }
 }
