@@ -7,11 +7,11 @@ using System.Drawing;
 
 namespace MapTool
 {
+    [Serializable()]
     class RoomRow : IEnumerable<Room>
     {
         List<Room> _Rooms = new List<Room>();
-        public Room this[int i]
-        {
+        public Room this[int i] {
             get { return _Rooms[i]; }
             set { _Rooms[i] = value; }
         }
@@ -54,13 +54,21 @@ namespace MapTool
         }
     };
 
+    [Serializable()]
     class RoomGrid : IEnumerable<IEnumerable<Room>>
     {
         List<RoomRow> _Rows = new List<RoomRow>();
         int _Width = 0;
 
-        public int Width { get { return _Width; } }
-        public int Height { get { return _Rows.Count; } }
+        public int Width {
+            get { return _Width; }
+        }
+        public int Height {
+            get { return _Rows.Count; }
+        }
+        public Size Size {
+            get { return new Size(Width, Height); }
+        }
 
         // Lookup methods.
         public Room GetRoom(Point roomPt)

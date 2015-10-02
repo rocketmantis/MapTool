@@ -18,18 +18,17 @@ namespace MapTool
         AnyDoor = OpenDoor | ClosedDoor
     }
 
+    [Serializable()]
     class Wall
     {
-        WallType _Type = WallType.Undefined;
-        Color _DoorColor = Color.Fuchsia;
-
-        public WallType Type
-        {
+        private WallType _Type = WallType.Undefined;
+        public WallType Type {
             get { return _Type; }
             set { _Type = value; }
         }
-        public Color DoorColor
-        {
+
+        private Color _DoorColor = Color.Fuchsia;
+        public Color DoorColor {
             get { return _DoorColor; }
             set { _DoorColor = value; }
         }

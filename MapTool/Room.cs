@@ -32,35 +32,24 @@ namespace MapTool
         }
     }
 
-    // In order to make an indexed property Room.Walls[], we have to delegate
-    // the indexer into a subclass.
-    class RoomWalls
-    {
-        Wall[] arr = new Wall[Direction.Count];
-        // And a default indexer to go right into the array.
-        public Wall this[int i]
-        {
-            get { return arr[i]; }
-            set { arr[i] = value; }
-        }
-    }
-
+    [Serializable()]
     class Room
     {
-        // Fields
-        private RoomWalls _Walls = new RoomWalls();
-        private Color _Color;
-        private Boolean _MergeAsNull;
-
         // Properties
-        public RoomWalls Walls { get { return _Walls; } }
-        public Color Color
-        {
+        private StaticArrayProperty<Wall> _Walls = new StaticArrayProperty<Wall>(Direction.Count);
+        public StaticArrayProperty<Wall> Walls {
+            get { return _Walls; }
+            set { _Walls = value; }
+        }
+
+        private Color _Color;
+        public Color Color {
             get { return _Color; }
             set { _Color = value; }
         }
-        public Boolean MergeAsNull
-        {
+
+        private Boolean _MergeAsNull;
+        public Boolean MergeAsNull {
             get { return _MergeAsNull; }
             set { _MergeAsNull = value; }
         }

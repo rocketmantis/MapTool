@@ -9,11 +9,32 @@ namespace MapTool
 {
     public delegate void BoundsChangedEventHandler(object sender, Rectangle oldBounds);
 
+    [Serializable()]
     class Map
     {
         // Fields
-        private RoomGrid _Rooms = new RoomGrid();
-        private Rectangle _Bounds = new Rectangle(0, 0, 0, 0);
+        RoomGrid _Grid = new RoomGrid();
+        public RoomGrid Grid {
+            get { return _Grid; }
+            set { _Grid = value; }
+        }
+        //Rectangle _Bounds = new Rectangle(0, 0, 0, 0);
+
+        // Generally this won't be set directly; go through Bounds instead.
+        // But if you want to just change the offset and move everything around,
+        // instead of deleting things that are outside the new area, this is a way to do it.
+        Point _Offset = new Point(0, 0);
+        public Point Offset {
+            get { return _Offset; }
+            set {
+                if (_Offset != value)
+                {
+                    Rectangle oldBounds = Bounds;
+                    _Offset = value;
+                    OnBoundsChanged(oldBounds);
+                }
+            }
+        }
 
         // Private utility methods
         private Point GetGridPoint(Point boundsPoint)
@@ -37,14 +58,14 @@ namespace MapTool
             // The grid will crash if you ask it for a room out of range.
             // By contrast, Maps just have implicit null rooms for everything outside the current bounds.
             if (Bounds.Contains(roomPt))
-                return _Rooms.GetRoom(GetGridPoint(roomPt));
+                return _Grid.GetRoom(GetGridPoint(roomPt));
             else
                 return null;
         }
         public Room CreateRoom(Point roomPt)
         {
             ExtendBoundsIfNeeded(roomPt);
-            return _Rooms.CreateRoom(GetGridPoint(roomPt));
+            return _Grid.CreateRoom(GetGridPoint(roomPt));
         }
         public Room GetOrCreateRoom(Point roomPt)
         {
@@ -53,10 +74,10 @@ namespace MapTool
         }
         public Room GetAdjacentRoom(Point roomPt, int direction)
         {
-            return _Rooms.GetAdjacentRoom(GetGridPoint(roomPt), direction);
+            return _Grid.GetAdjacentRoom(GetGridPoint(roomPt), direction);
         }
         public IEnumerator<IEnumerable<Room>> GetGridEnumerator()
-        { return _Rooms.GetEnumerator(); }
+        { return _Grid.GetEnumerator(); }
 
         // Bounds-related properties
         public event BoundsChangedEventHandler BoundsChanged;
@@ -72,52 +93,52 @@ namespace MapTool
                 // Changing the bounds also moves around the contents of the grid,
                 // adding new null rooms as needed and discarding rooms that are
                 // outside the new rect.
-                if (_Bounds != value)
+                if (Bounds != value)
                 {
-                    Rectangle oldBounds = _Bounds;
+                    Rectangle oldBounds = Bounds;
 
                     // Adjust the width first, so any new rows added get the right number of rooms to start.
-                    if (_Bounds.Left != value.Left)
+                    if (oldBounds.Left != value.Left)
                     {
-                        int delta = Math.Abs(_Bounds.Left - value.Left);
-                        if (_Bounds.Left > value.Left)
-                            _Rooms.InsertColumns(0, delta);
+                        int delta = Math.Abs(oldBounds.Left - value.Left);
+                        if (oldBounds.Left > value.Left)
+                            _Grid.InsertColumns(0, delta);
                         else
-                            _Rooms.RemoveColumns(0, delta);
+                            _Grid.RemoveColumns(0, delta);
                     }
-                    if (_Bounds.Right != value.Right)
+                    if (oldBounds.Right != value.Right)
                     {
-                        int delta = Math.Abs(_Bounds.Right - value.Right);
-                        if (_Bounds.Right < value.Right)
-                            _Rooms.AddColumns(delta);
+                        int delta = Math.Abs(oldBounds.Right - value.Right);
+                        if (oldBounds.Right < value.Right)
+                            _Grid.AddColumns(delta);
                         else
-                            _Rooms.RemoveColumns(_Rooms.Width - delta, delta);
+                            _Grid.RemoveColumns(_Grid.Width - delta, delta);
                     }
 
                     // Now adjust the height.
-                    if (_Bounds.Top != value.Top)
+                    if (oldBounds.Top != value.Top)
                     {
-                        int delta = Math.Abs(_Bounds.Top - value.Top);
-                        if (_Bounds.Top > value.Top)
-                            _Rooms.InsertRows(0, delta);
+                        int delta = Math.Abs(oldBounds.Top - value.Top);
+                        if (oldBounds.Top > value.Top)
+                            _Grid.InsertRows(0, delta);
                         else
-                            _Rooms.RemoveRows(0, delta);
+                            _Grid.RemoveRows(0, delta);
                     }
-                    if (_Bounds.Bottom != value.Bottom)
+                    if (oldBounds.Bottom != value.Bottom)
                     {
-                        int delta = Math.Abs(_Bounds.Bottom - value.Bottom);
-                        if (_Bounds.Bottom < value.Bottom)
-                            _Rooms.AddRows(delta);
+                        int delta = Math.Abs(oldBounds.Bottom - value.Bottom);
+                        if (oldBounds.Bottom < value.Bottom)
+                            _Grid.AddRows(delta);
                         else
-                            _Rooms.RemoveRows(_Rooms.Height - delta, delta);
+                            _Grid.RemoveRows(_Grid.Height - delta, delta);
                     }
 
                     // The rooms have been updated, so now we can set the field and be done.
-                    _Bounds = value;
+                    Offset = value.Location;
                     OnBoundsChanged(oldBounds);
                 }
             }
-            get { return _Bounds; }
+            get { return new Rectangle(_Offset, _Grid.Size);  }
         }
 
         public enum DrawWallMode
