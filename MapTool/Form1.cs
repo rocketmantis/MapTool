@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 using CoordinateHelper;
 
 namespace MapTool
@@ -16,6 +18,7 @@ namespace MapTool
     {
         private Map _Map = new Map();
         private MapPainter _Painter = new MapPainter();
+        private string _Filename = null;
 
         private void MapBoundsChanged(object sender, Rectangle oldBounds)
         {
@@ -32,6 +35,11 @@ namespace MapTool
 
             _Map.BoundsChanged += MapBoundsChanged;
 
+            //CreateTestRooms();
+        }
+
+        private void CreateTestRooms()
+        {
             // We shouldn't need to explicitly set the bounds anymore;
             // CreateRoom should extend the boundary as necessary.
             //_Map.Bounds = new Rectangle(-1, -1, 5, 5);
@@ -88,13 +96,13 @@ namespace MapTool
             Point roomPt = _Painter.GetRoomPtForCanvasPoint(e.Location);
             if (_Map.Bounds.Contains(roomPt))
             {
-                label1.Text = "X: " + roomPt.X;
-                label2.Text = "Y: " + roomPt.Y;
+                toolStripStatusLabel1.Text = "X: " + roomPt.X;
+                toolStripStatusLabel2.Text = "Y: " + roomPt.Y;
             }
             else
             {
-                label1.Text = "";
-                label2.Text = "";
+                toolStripStatusLabel1.Text = "";
+                toolStripStatusLabel2.Text = "";
             }
         }
 
@@ -107,7 +115,9 @@ namespace MapTool
 
         private void Form1_MouseUp(object sender, MouseEventArgs e)
         {
-            if (e.Button == MouseButtons.Left)
+            // Sometimes there can be a mouseup without a relevant mousedown, just ignore it
+            // if that happens.
+            if ((MouseDownArgs != null) && (e.Button == MouseButtons.Left))
             {
                 Point startPt = _Painter.GetRoomPtForCanvasPoint(MouseDownArgs.Location);
                 Point endPt = _Painter.GetRoomPtForCanvasPoint(e.Location);
@@ -142,25 +152,47 @@ namespace MapTool
             MouseDownArgs = null;
         }
 
-        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-
-        }
-
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
             {
-                // todo
+                // unhook event from old map
+                _Map.BoundsChanged -= MapBoundsChanged;
+
+                Stream loadStream = File.OpenRead(openFileDialog1.FileName);
+                BinaryFormatter deserializer = new BinaryFormatter();
+                _Map = (Map)deserializer.Deserialize(loadStream);
+
+                // hook up event to new map
+                _Map.BoundsChanged += MapBoundsChanged;
+                Invalidate();
+
+                _Filename = openFileDialog1.FileName;
             }
+        }
+
+        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_Filename != null)
+                SaveMapToFile(_Filename);
+            else
+                saveAsToolStripMenuItem_Click(sender, e);
         }
 
         private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (saveFileDialog1.ShowDialog(this) == DialogResult.OK)
-            {
-                // todo
-            }
+                SaveMapToFile(saveFileDialog1.FileName);
+        }
+
+        private void SaveMapToFile(string filename)
+        {
+            Stream saveStream = File.Create(saveFileDialog1.FileName);
+            BinaryFormatter serializer = new BinaryFormatter();
+            serializer.Serialize(saveStream, _Map);
+            saveStream.Close();
+
+            _Filename = filename;
         }
     }
 }

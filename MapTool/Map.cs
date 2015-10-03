@@ -80,6 +80,7 @@ namespace MapTool
         { return _Grid.GetEnumerator(); }
 
         // Bounds-related properties
+        [field:NonSerializedAttribute()]
         public event BoundsChangedEventHandler BoundsChanged;
         protected virtual void OnBoundsChanged(Rectangle oldBounds)
         {
