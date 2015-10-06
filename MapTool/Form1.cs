@@ -129,8 +129,6 @@ namespace MapTool
 
         private void Form1_MouseUp(object sender, MouseEventArgs e)
         {
-            // Sometimes there can be a mouseup without a relevant mousedown, just ignore it
-            // if that happens.
             if (e.Button == MouseButtons.Left)
             {
                 Rectangle? invalidRect = ActiveTool.MouseUp(e.Location);
