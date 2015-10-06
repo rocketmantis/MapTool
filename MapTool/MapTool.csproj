@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EditTool.cs" />
     <Compile Include="Map.cs" />
     <Compile Include="CompareHelper.cs" />
     <Compile Include="CoordinateHelper.cs" />
