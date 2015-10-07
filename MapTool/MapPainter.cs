@@ -11,13 +11,47 @@ namespace MapTool
 {
     class MapPainter
     {
-        private Size RoomSize = new Size(32, 32);
+        private Size RoomSize;
         private const int WallWidth = 4;
         private const int HalfWallWidth = WallWidth / 2;
         private const int DoorBorder = 1;
 
-        private Point Origin = new Point(80, 80);
-        private Color WallColor = Color.White;
+        private Point Origin;
+        private Color WallColor;
+        private List<Point> DirtyRooms;
+
+        // I'll worry about thread safety later.
+        private LockHandler UpdateLock;
+
+        public MapPainter()
+        {
+            RoomSize = new Size(32, 32);
+            Origin = new Point(80, 80);
+            WallColor = Color.White;
+            DirtyRooms = new List<Point>();
+            UpdateLock = new LockHandler();
+            UpdateLock.LockChanged += UpdateChanged;
+        }
+
+        private void UpdateChanged(object sender, bool locked)
+        {
+            if (!locked)
+            {
+                // todo: invalidate/repaint dirty rooms
+            }
+        }
+
+        public void BeginUpdate()
+        {
+            UpdateLock.Lock();
+        }
+        public void EndUpdate()
+        {
+            UpdateLock.Unlock();
+        }
+
+        public void DoUpdate(bool UpdateStarting)
+        { }
 
         public Rectangle GetCanvasRectForRoom(Point startPt, Point? endPt = null)
         {
@@ -82,6 +116,17 @@ namespace MapTool
 
             // second pass across rooms: draw the walls and doors
             PaintRoomWalls(map, graphics, dirtyRooms);
+        }
+
+        private void PaintRoomBGs(Map map, Graphics graphics, List<Point> dirtyRooms)
+        {
+            foreach (Point roomPt in dirtyRooms)
+            {
+                Room curRoom = map.GetRoom(roomPt);
+                Rectangle roomRect = GetCanvasRectForRoom(roomPt);
+                // Fill in the room area.
+                graphics.FillRectangle(new SolidBrush(curRoom.Color), roomRect);
+            }
         }
 
         private void PaintRoomWalls(Map map, Graphics graphics, List<Point> dirtyRooms)
@@ -159,17 +204,6 @@ namespace MapTool
                             break;
                     } // switch (curWall.Type)
                 } // for i in directions do
-            }
-        }
-
-        private void PaintRoomBGs(Map map, Graphics graphics, List<Point> dirtyRooms)
-        {
-            foreach (Point roomPt in dirtyRooms)
-            {
-                Room curRoom = map.GetRoom(roomPt);
-                Rectangle roomRect = GetCanvasRectForRoom(roomPt);
-                // Fill in the room area.
-                graphics.FillRectangle(new SolidBrush(curRoom.Color), roomRect);
             }
         }
 

@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Drawing.Imaging;
 
 namespace MapTool
 {
@@ -26,7 +27,7 @@ namespace MapTool
             // excluding the intersection. ie. the xor of the two rects.
             Region invalidRegion = new Region(Painter.GetCanvasRectForRoom(oldBounds, true));
             invalidRegion.Xor(Painter.GetCanvasRectForRoom(Map.Bounds, true));
-            Invalidate(invalidRegion);
+            pictureBox1.Invalidate(invalidRegion);
         }
 
         public MapEditForm()
@@ -134,7 +135,7 @@ namespace MapTool
                 Rectangle? invalidRect = ActiveTool.MouseUp(e.Location);
 
                 if (invalidRect.HasValue)
-                    Invalidate(invalidRect.Value);
+                    pictureBox1.Invalidate(invalidRect.Value);
             }
         }
 
@@ -151,7 +152,7 @@ namespace MapTool
 
                 // hook up event to new map
                 Map.BoundsChanged += MapBoundsChanged;
-                Invalidate();
+                pictureBox1.Invalidate();
 
                 Filename = openFileDialog1.FileName;
             }
