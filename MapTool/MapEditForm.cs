@@ -13,7 +13,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 
 namespace MapTool
 {
-    public partial class Form1 : Form
+    public partial class MapEditForm : Form
     {
         private Map Map { get; set; }
         private MapPainter Painter { get; set; }
@@ -29,7 +29,7 @@ namespace MapTool
             Invalidate(invalidRegion);
         }
 
-        public Form1()
+        public MapEditForm()
         {
             InitializeComponent();
 
