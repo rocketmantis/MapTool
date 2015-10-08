@@ -9,7 +9,7 @@ namespace MapTool
     // In order to make an indexed property Room.Walls[], we have to delegate
     // the indexer into a subclass.
     [Serializable()]
-    class StaticArrayProperty<T>
+    public class StaticArrayProperty<T>
     {
         // This has to be public so we can stream it.
         // Generally outside code won't go to the array directly though.

@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Windows.Forms;
+using System.ComponentModel;
 using CoordinateHelper;
 
 namespace MapTool
 {
-    class MapPainter
+    public partial class MapBox : Control
     {
         private Size RoomSize;
         private const int WallWidth = 4;
@@ -20,38 +19,86 @@ namespace MapTool
         private Color WallColor;
         private List<Point> DirtyRooms;
 
-        // I'll worry about thread safety later.
-        private LockHandler UpdateLock;
+        // inherited from Control
+        [Browsable(true)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+        public override bool AutoSize { get; set; }
 
-        public MapPainter()
+        [NonSerialized()]
+        private Map map;
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Map Map {
+            get { return map; }
+            set
+            {
+                // unhook the event from the old map
+                if (map != null)
+                    map.BoundsChanged -= MapBoundsChanged;
+
+                map = value;
+
+                // hook up events to the new map
+                if (map != null)
+                    map.BoundsChanged += MapBoundsChanged;
+
+                Invalidate();
+            }
+        }
+
+        public MapBox()
         {
+            InitializeComponent();
+
             RoomSize = new Size(32, 32);
             Origin = new Point(80, 80);
             WallColor = Color.White;
             DirtyRooms = new List<Point>();
-            UpdateLock = new LockHandler();
-            UpdateLock.LockChanged += UpdateChanged;
+
+            Map = new Map();
+            // shouldn't need to set the event, the property setter will handle it.
+            //Map.BoundsChanged += MapBoundsChanged;
         }
 
-        private void UpdateChanged(object sender, bool locked)
+        private void MapBoundsChanged(object sender, Rectangle oldBounds)
         {
-            if (!locked)
+            // The Maps that have changed are the union of the two bounds,
+            // excluding the intersection. ie. the xor of the two rects.
+            Region invalidRegion = new Region(GetCanvasRectForRoom(oldBounds, true));
+            invalidRegion.Xor(GetCanvasRectForRoom(Map.Bounds, true));
+            Invalidate(invalidRegion);
+
+            if (this.AutoSize)
+                this.SetBoundsCore(this.Left, this.Top, this.Width, this.Height, BoundsSpecified.Size);
+        }
+
+        // This calculates the size to use when autosizing.
+        private Size GetAutoSize()
+        {
+            if (Map != null)
+                return GetCanvasRectForRoom(Map.Bounds, true).Size + (Size)Origin;
+            else
+                return new Size(100, 100);
+        }
+
+        // This is called when the parent control wants to know what size this control would like to be.
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            return GetAutoSize();
+        }
+
+        // Override to force the size to use the autosize.
+        // I'm not sure this is necessary...
+        protected override void SetBoundsCore(int x, int y, int width, int height, BoundsSpecified specified)
+        {
+            if (this.AutoSize && (specified & BoundsSpecified.Size) != 0)
             {
-                // todo: invalidate/repaint dirty rooms
+                Size size = GetAutoSize();
+                width = size.Width;
+                height = size.Height;
             }
+            base.SetBoundsCore(x, y, width, height, specified);
         }
-
-        public void BeginUpdate()
-        {
-            UpdateLock.Lock();
-        }
-        public void EndUpdate()
-        {
-            UpdateLock.Unlock();
-        }
-
-        public void DoUpdate(bool UpdateStarting)
-        { }
 
         public Rectangle GetCanvasRectForRoom(Point startPt, Point? endPt = null)
         {
@@ -86,13 +133,18 @@ namespace MapTool
                 (int)Math.Floor((double)boundsPoint.Y / RoomSize.Height));
         }
 
-        public void Paint(Map map, Graphics graphics, Rectangle clipRect)
+        protected override void OnPaint(PaintEventArgs pe)
         {
-            Size MapSize = map.Bounds.Size;
+            base.OnPaint(pe);
+
+            if (Map == null)
+                return;
+
+            Size MapSize = Map.Bounds.Size;
             MapSize.Width *= RoomSize.Width;
             MapSize.Height *= RoomSize.Height;
 
-            Point MapLocation = map.Bounds.Location;
+            Point MapLocation = Map.Bounds.Location;
             MapLocation.X *= RoomSize.Width;
             MapLocation.Y *= RoomSize.Height;
             MapLocation.Offset(Origin);
@@ -100,22 +152,23 @@ namespace MapTool
             Rectangle MapRect = new Rectangle(MapLocation, MapSize);
             MapRect.Inflate(HalfWallWidth, HalfWallWidth);
 
-            if (!MapRect.IntersectsWith(clipRect))
+            if (!MapRect.IntersectsWith(pe.ClipRectangle))
                 return;
 
-            Rectangle paintRect = Rectangle.Intersect(MapRect, clipRect);
+            Rectangle paintRect = Rectangle.Intersect(MapRect, pe.ClipRectangle);
 
             // Fill in the default background.
-            graphics.FillRectangle(new SolidBrush(Color.DimGray), paintRect);
+            // may be able to skip this by setting the BackColor
+            //pe.Graphics.FillRectangle(new SolidBrush(Color.DimGray), paintRect);
 
-            // Get the list of rooms that need to be repainted, given the cliprect.
-            List<Point> dirtyRooms = GetDirtyRooms(map, clipRect);
+            // Get the list of rooms that need to be repainted, given the pe.ClipRectangle.
+            List<Point> dirtyRooms = GetDirtyRooms(Map, pe.ClipRectangle);
 
             // first pass across rooms: fill in the background
-            PaintRoomBGs(map, graphics, dirtyRooms);
+            PaintRoomBGs(Map, pe.Graphics, dirtyRooms);
 
             // second pass across rooms: draw the walls and doors
-            PaintRoomWalls(map, graphics, dirtyRooms);
+            PaintRoomWalls(Map, pe.Graphics, dirtyRooms);
         }
 
         private void PaintRoomBGs(Map map, Graphics graphics, List<Point> dirtyRooms)

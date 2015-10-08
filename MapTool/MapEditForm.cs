@@ -1,34 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Drawing.Imaging;
 
 namespace MapTool
 {
     public partial class MapEditForm : Form
     {
-        private Map Map { get; set; }
-        private MapPainter Painter { get; set; }
         private string Filename { get; set; }
         private EditTool ActiveTool { get; set; }
-
-        private void MapBoundsChanged(object sender, Rectangle oldBounds)
-        {
-            // The Maps that have changed are the union of the two bounds,
-            // excluding the intersection. ie. the xor of the two rects.
-            Region invalidRegion = new Region(Painter.GetCanvasRectForRoom(oldBounds, true));
-            invalidRegion.Xor(Painter.GetCanvasRectForRoom(Map.Bounds, true));
-            pictureBox1.Invalidate(invalidRegion);
-        }
 
         public MapEditForm()
         {
@@ -37,16 +18,10 @@ namespace MapTool
             // Initialize private properties.
             Filename = null;
 
-            Map = new Map();
-            Map.BoundsChanged += MapBoundsChanged;
-
-            Painter = new MapPainter();
-
             // Eventually we will switch the active tool based on what they pick from the toolbar.
             // For now there's only one hard-coded tool.
             ActiveTool = new ExtendRoomEditTool();
-            ActiveTool.Map = Map;
-            ActiveTool.Painter = Painter;
+            ActiveTool.MapBox = mapBox1;
 
             //CreateTestRooms();
         }
@@ -55,21 +30,21 @@ namespace MapTool
         {
             // We shouldn't need to explicitly set the bounds anymore;
             // CreateRoom should extend the boundary as necessary.
-            //Map.Bounds = new Rectangle(-1, -1, 5, 5);
+            //mapBox1.Map.Bounds = new Rectangle(-1, -1, 5, 5);
 
             // Make a room for the top-left and bottom-right corners
-            Room newRoom = Map.CreateRoom(new Point(-1, -1));
+            Room newRoom = mapBox1.Map.CreateRoom(new Point(-1, -1));
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Top].Type = WallType.OpenDoor;
             newRoom.Walls[Direction.Left].Type = WallType.OpenDoor;
 
-            newRoom = Map.CreateRoom(new Point(3, 3));
+            newRoom = mapBox1.Map.CreateRoom(new Point(3, 3));
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Bottom].Type = WallType.OpenDoor;
             newRoom.Walls[Direction.Right].Type = WallType.OpenDoor;
 
             // Fill in a few rooms to start with.
-            newRoom = Map.CreateRoom(new Point(2, 1));
+            newRoom = mapBox1.Map.CreateRoom(new Point(2, 1));
             newRoom.Color = Color.ForestGreen;
             newRoom.Walls[Direction.Top].Type = WallType.Solid;
             newRoom.Walls[Direction.Right].Type = WallType.Solid;
@@ -77,7 +52,7 @@ namespace MapTool
             newRoom.Walls[Direction.Left].Type = WallType.ClosedDoor;
             newRoom.Walls[Direction.Left].DoorColor = Color.DeepSkyBlue;
 
-            newRoom = Map.CreateRoom(new Point(0, 2));
+            newRoom = mapBox1.Map.CreateRoom(new Point(0, 2));
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Top].Type = WallType.OpenDoor;
             newRoom.Walls[Direction.Left].Type = WallType.Solid;
@@ -86,28 +61,23 @@ namespace MapTool
             newRoom.Walls[Direction.Right].Type = WallType.ClosedDoor;
             newRoom.Walls[Direction.Right].DoorColor = Color.OrangeRed;
 
-            newRoom = Map.CreateRoom(new Point(0, 1));
+            newRoom = mapBox1.Map.CreateRoom(new Point(0, 1));
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Top].Type = WallType.Solid;
             newRoom.Walls[Direction.Left].Type = WallType.Solid;
             // Bottom should be defined by the connection already
             // Right we'll leave open.
 
-            newRoom = Map.CreateRoom(new Point(1, 1));
+            newRoom = mapBox1.Map.CreateRoom(new Point(1, 1));
             newRoom.Color = Color.MediumBlue;
             newRoom.Walls[Direction.Top].Type = WallType.Solid;
             newRoom.Walls[Direction.Bottom].Type = WallType.Solid;
         }
 
-        private void Form1_Paint(object sender, PaintEventArgs e)
+        private void mapBox1_MouseMove(object sender, MouseEventArgs e)
         {
-            Painter.Paint(Map, e.Graphics, e.ClipRectangle);
-        }
-
-        private void Form1_MouseMove(object sender, MouseEventArgs e)
-        {
-            Point roomPt = Painter.GetRoomPtForCanvasPoint(e.Location);
-            if (Map.Bounds.Contains(roomPt))
+            Point roomPt = mapBox1.GetRoomPtForCanvasPoint(e.Location);
+            if (mapBox1.Map.Bounds.Contains(roomPt))
             {
                 toolStripStatusLabel1.Text = "X: " + roomPt.X;
                 toolStripStatusLabel2.Text = "Y: " + roomPt.Y;
@@ -122,37 +92,25 @@ namespace MapTool
                 ActiveTool.MouseMove(e.Location);
         }
 
-        private void Form1_MouseDown(object sender, MouseEventArgs e)
+        private void mapBox1_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
                 ActiveTool.MouseDown(e.Location);
         }
 
-        private void Form1_MouseUp(object sender, MouseEventArgs e)
+        private void mapBox1_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
-            {
-                Rectangle? invalidRect = ActiveTool.MouseUp(e.Location);
-
-                if (invalidRect.HasValue)
-                    pictureBox1.Invalidate(invalidRect.Value);
-            }
+                ActiveTool.MouseUp(e.Location);
         }
 
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
             {
-                // unhook event from old map
-                Map.BoundsChanged -= MapBoundsChanged;
-
                 Stream loadStream = File.OpenRead(openFileDialog1.FileName);
                 BinaryFormatter deserializer = new BinaryFormatter();
-                Map = (Map)deserializer.Deserialize(loadStream);
-
-                // hook up event to new map
-                Map.BoundsChanged += MapBoundsChanged;
-                pictureBox1.Invalidate();
+                mapBox1.Map = (Map)deserializer.Deserialize(loadStream);
 
                 Filename = openFileDialog1.FileName;
             }
@@ -176,10 +134,15 @@ namespace MapTool
         {
             Stream saveStream = File.Create(saveFileDialog1.FileName);
             BinaryFormatter serializer = new BinaryFormatter();
-            serializer.Serialize(saveStream, Map);
+            serializer.Serialize(saveStream, mapBox1.Map);
             saveStream.Close();
 
             Filename = filename;
+        }
+
+        private void panel1_Scroll(object sender, ScrollEventArgs e)
+        {
+            Filename = Filename;
         }
     }
 }

@@ -1,14 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 
 namespace MapTool
 {
     [FlagsAttribute]
-    enum WallType
+    public enum WallType
     {
         Undefined = 0,
         Open = 1,
@@ -19,7 +15,7 @@ namespace MapTool
     }
 
     [Serializable()]
-    class Wall
+    public class Wall
     {
         private WallType _Type = WallType.Undefined;
         public WallType Type {

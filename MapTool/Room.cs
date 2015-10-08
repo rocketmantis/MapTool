@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 
 namespace MapTool
@@ -33,7 +29,7 @@ namespace MapTool
     }
 
     [Serializable()]
-    class Room
+    public class Room
     {
         // Properties
         private StaticArrayProperty<Wall> _Walls = new StaticArrayProperty<Wall>(Direction.Count);

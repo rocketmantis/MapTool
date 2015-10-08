@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 
 namespace MapTool
 {
     [Serializable()]
-    class RoomRow : IEnumerable<Room>
+    public class RoomRow : IEnumerable<Room>
     {
         List<Room> _Rooms = new List<Room>();
         public Room this[int i] {
@@ -55,7 +52,7 @@ namespace MapTool
     };
 
     [Serializable()]
-    class RoomGrid : IEnumerable<IEnumerable<Room>>
+    public class RoomGrid : IEnumerable<IEnumerable<Room>>
     {
         List<RoomRow> _Rows = new List<RoomRow>();
         int _Width = 0;

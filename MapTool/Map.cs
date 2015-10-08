@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 
 namespace MapTool
@@ -10,7 +7,7 @@ namespace MapTool
     public delegate void BoundsChangedEventHandler(object sender, Rectangle oldBounds);
 
     [Serializable()]
-    class Map
+    public class Map
     {
         // Fields
         RoomGrid _Grid = new RoomGrid();

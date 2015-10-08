@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace MapTool
+﻿namespace MapTool
 {
     public delegate void LockChangeEventHandler(object sender, bool locked);
     class LockHandler

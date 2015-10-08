@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Drawing;
 using CoordinateHelper;
 
 namespace MapTool
@@ -12,10 +7,8 @@ namespace MapTool
     {
         private Point? downPt;
 
-        // Need this to convert between painted pixels and map coords
-        public MapPainter Painter { get; set; }
-        // Need this to make changes to the map.
-        public Map Map { get; set; }
+        // This is the canvas/map the tool is operating on.
+        public MapBox MapBox { get; set; }
 
         public virtual void Cancel()
         {
@@ -27,18 +20,20 @@ namespace MapTool
         }
 
         protected abstract Rectangle? MouseUpInternal(Point upPoint, Point downPoint);
-        public Rectangle? MouseUp(Point location)
+        public void MouseUp(Point location)
         {
             // Sometimes there can be a mouseup without a relevant mousedown, just ignore it
             // if that happens.
             if (downPt.HasValue)
             {
                 Rectangle? result = MouseUpInternal(location, downPt.Value);
-                // Clear the down point before returning.
+
+                // this is kind of hacky, the mapbox should invalidate itself in response to changes.
+                // todo: move this into an OnRoomChange or something in the map and have the mapbox handle it.
                 downPt = null;
-                return result;
+                if (result.HasValue)
+                    MapBox.Invalidate(result.Value);
             }
-            else return null;
         }
         public virtual void MouseMove(Point location)
         {
@@ -51,8 +46,8 @@ namespace MapTool
         protected abstract void FillRoomRect(Rectangle roomRect, Point startRoomPt);
         protected override Rectangle? MouseUpInternal(Point upPoint, Point downPoint)
         {
-            Point startRoomPt = Painter.GetRoomPtForCanvasPoint(downPoint);
-            Point endRoomPt = Painter.GetRoomPtForCanvasPoint(upPoint);
+            Point startRoomPt = MapBox.GetRoomPtForCanvasPoint(downPoint);
+            Point endRoomPt = MapBox.GetRoomPtForCanvasPoint(upPoint);
             Rectangle roomRect = RectHelper.FromPoints(startRoomPt, endRoomPt);
 
             // Inflate the bottom-right so both points are included.
@@ -63,7 +58,7 @@ namespace MapTool
 
             // It may be better to move this into the FillRoomRect call eventually,
             // but for now just assume that descendants will always change the whole rect.
-            return Painter.GetCanvasRectForRoom(roomRect, true);
+            return MapBox.GetCanvasRectForRoom(roomRect, true);
         }
     }
 
@@ -71,13 +66,15 @@ namespace MapTool
     {
         protected override void FillRoomRect(Rectangle roomRect, Point startRoomPt)
         {
+            // convenience variable.
+            Map map = MapBox.Map;
             // Always preserve existing doors on the outer edge of the new room.
             Map.DrawWallMode wallMode = Map.DrawWallMode.Overwrite;
             // Default room color for new/changed rooms.
             Color roomColor = Color.DeepSkyBlue;
 
             // Some things depend on the room that the drag started in.
-            Room startRoom = Map.GetRoom(startRoomPt);
+            Room startRoom = map.GetRoom(startRoomPt);
             if (startRoom != null)
             {
                 // Also preserve existing open walls if the drawing started inside an existing room.
@@ -86,7 +83,7 @@ namespace MapTool
                 roomColor = startRoom.Color;
             }
 
-            Map.DrawRectangle(roomRect, roomColor, wallMode);
+            map.DrawRectangle(roomRect, roomColor, wallMode);
         }
     }
 }
